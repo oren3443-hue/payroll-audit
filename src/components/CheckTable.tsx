@@ -1,8 +1,9 @@
 import { useState, useMemo } from 'react';
-import { CheckSummary, CheckResult } from '../lib/types';
+import { CheckSummary, CheckResult, IssueStatus } from '../lib/types';
 import { IssueStatusChip } from './IssueStatusChip';
+import { setStatus } from '../lib/statusStore';
 import { cn, formatCurrency, SEV_LABEL, SEV_TEXT, SEV_DOT, SEV_ROW } from '../lib/utils';
-import { ChevronUp, ChevronDown, Search } from 'lucide-react';
+import { ChevronUp, ChevronDown, Search, Wrench, CheckCheck } from 'lucide-react';
 
 interface Props {
   check: CheckSummary;
@@ -17,6 +18,16 @@ export function CheckTable({ check, onEmployeeClick }: Props) {
   const [sevFilter, setSevFilter] = useState('');
   const [sortCol, setSortCol] = useState<string | null>('financialImpact');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const bulkSetStatus = (status: IssueStatus['status']) => {
+    const label = status === 'fix' ? 'לתיקון' : 'נבדק תקין';
+    if (!confirm(`לסמן ${filtered.length} עובדים מסוננים כ"${label}"?`)) return;
+    for (const r of filtered) {
+      setStatus(check.checkId, r.empId, { status });
+    }
+    setRefreshKey(k => k + 1);
+  };
 
   const departments = useMemo(() =>
     [...new Set(check.results.map(r => r.department).filter(Boolean))].sort(),
@@ -114,6 +125,26 @@ export function CheckTable({ check, onEmployeeClick }: Props) {
           <option value="medium">בינונית</option>
         </select>
         <span className="text-sm text-gray-500 self-center">{filtered.length} ממצאים</span>
+        <div className="flex gap-2 mr-auto">
+          <button
+            onClick={() => bulkSetStatus('fix')}
+            disabled={filtered.length === 0}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-red-50 text-red-700 border border-red-200 rounded-lg hover:bg-red-100 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="סמן את כל הממצאים המסוננים כ-לתיקון"
+          >
+            <Wrench className="w-3.5 h-3.5" />
+            סמן הכל לתיקון
+          </button>
+          <button
+            onClick={() => bulkSetStatus('ok')}
+            disabled={filtered.length === 0}
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100 disabled:opacity-40 disabled:cursor-not-allowed"
+            title="סמן את כל הממצאים המסוננים כ-תקין"
+          >
+            <CheckCheck className="w-3.5 h-3.5" />
+            סמן הכל תקין
+          </button>
+        </div>
       </div>
 
       {/* Table */}
@@ -144,7 +175,7 @@ export function CheckTable({ check, onEmployeeClick }: Props) {
           <tbody>
             {filtered.map((r, i) => (
               <ResultRow
-                key={`${r.empId}-${i}`}
+                key={`${r.empId}-${i}-${refreshKey}`}
                 result={r}
                 fieldKeys={fieldKeys}
                 checkId={check.checkId}
