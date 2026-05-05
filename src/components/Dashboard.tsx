@@ -6,7 +6,8 @@ import { DepartmentView } from './DepartmentView';
 import { EmployeeListView } from './EmployeeListView';
 import { EmployeeDrawer } from './EmployeeDrawer';
 import { formatCurrency, cn, SEV_TEXT, SEV_DOT } from '../lib/utils';
-import { Download, RefreshCw } from 'lucide-react';
+import { Download, RefreshCw, FileDown } from 'lucide-react';
+import { exportImportFile } from '../lib/exportImport';
 
 interface Props {
   result: AuditResult;
@@ -52,6 +53,17 @@ export function Dashboard({ result, onReset, onExport }: Props) {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                const now = new Date();
+                exportImportFile(result, now.getFullYear(), now.getMonth() + 1);
+              }}
+              className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700 transition-colors"
+              title="קובץ לקליטה במיכפל — מאפס רכיבים שעתיים אצל גלובלים שסומנו לתיקון"
+            >
+              <FileDown className="w-4 h-4" />
+              קובץ קליטה (לתיקון בלבד)
+            </button>
             <button
               onClick={onExport}
               className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"

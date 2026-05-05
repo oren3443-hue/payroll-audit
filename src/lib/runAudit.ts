@@ -8,7 +8,7 @@ import {
   checkHourlyRate, checkHours100, checkHours125, checkHours150,
   checkNightHours, checkWorkDays, checkTravel, checkVacation, checkSick,
   checkMissingPayslip, checkMissingAttendance, checkGlobalEmployees,
-  checkVehicleAndTravel, checkLowBalances
+  checkVehicleAndTravel, checkHighBalances
 } from './checks/businessChecks';
 import {
   checkRateChange, checkDisappearedComponents, checkNewComponents, checkHoursDramaticChange
@@ -46,7 +46,7 @@ export function runAudit(
   ];
 
   if (utilization && utilization.size > 0) {
-    allChecks.push(() => checkLowBalances(attMap, payEmployees, utilization));
+    allChecks.push(() => checkHighBalances(attMap, payEmployees, utilization));
   }
 
   if (prevPayEmployees) {

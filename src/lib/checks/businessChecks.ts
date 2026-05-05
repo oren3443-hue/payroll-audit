@@ -264,7 +264,7 @@ export function checkVacation(a: Map<string, AttendanceRow>, p: Map<string, Pays
 
     // Check avg hours/vacation day
     const denom = payVac > 0 ? payVac : attVac;
-    const vacHoursComp = pay.components.find(c => c.componentName.includes('חופשה'));
+    const vacHoursComp = pay.components.find(c => c.componentName === 'חופש' || c.componentName === 'פדיון חופש' || c.componentName.includes('חופש'));
     const payVacHours = vacHoursComp?.qty ?? 0;
     const avg = denom > 0 ? payVacHours / denom : 0;
 
@@ -392,9 +392,10 @@ export function checkMissingAttendance(a: Map<string, AttendanceRow>, p: Map<str
 }
 
 // רכיבים שעתיים שאסורים לעובד גלובלי
+// (שעות נוספות וש. נוספות ג מותרים — שייכים לרכיב 2 הגלובלי)
 const FORBIDDEN_HOURLY = [
   'שכר 100%', 'ש.נוס 125%', 'הפרשי שכר 125%',
-  'ש.נוס 150%', 'ש. נוספות ג', 'שעות נוספות', 'הפרשי שכר 150%',
+  'ש.נוס 150%', 'הפרשי שכר 150%',
   'משמרות',
 ];
 
@@ -487,10 +488,10 @@ export function checkVehicleAndTravel(a: Map<string, AttendanceRow>, p: Map<stri
   return makeSum('C13', 'שווי רכב + נסיעות', 'עובדים עם רכיב שווי רכב וגם רכיב נסיעות בו-זמנית', results);
 }
 
-// בדיקה: יתרות חופש/מחלה נמוכות (מקובץ הניצולים)
-const LOW_BALANCE_THRESHOLD = 5;
+// בדיקה: יתרות חופש גבוהות (מקובץ הניצולים) — עובדים עם יתרה > 12 ימים
+const HIGH_BALANCE_THRESHOLD = 12;
 
-export function checkLowBalances(
+export function checkHighBalances(
   a: Map<string, AttendanceRow>,
   p: Map<string, PayslipEmployee>,
   util: Map<string, UtilizationRow>
@@ -499,35 +500,31 @@ export function checkLowBalances(
 
   for (const [id, u] of util.entries()) {
     const vacB = u.vacBalance ?? 0;
-    const sickB = u.sickBalance ?? 0;
-    const lowVac = vacB < LOW_BALANCE_THRESHOLD;
-    const lowSick = sickB < LOW_BALANCE_THRESHOLD;
-    if (!lowVac && !lowSick) continue;
+    if (vacB <= HIGH_BALANCE_THRESHOLD) continue;
 
     const att = a.get(id);
     const pay = p.get(id);
-    const negative = vacB < 0 || sickB < 0;
-
-    const alerts: string[] = [];
-    if (negative) alerts.push('יתרה שלילית');
-    if (lowVac) alerts.push(`חופש: ${vacB}`);
-    if (lowSick) alerts.push(`מחלה: ${sickB}`);
+    const sev: Severity = vacB > 30 ? 'high' : vacB > 20 ? 'medium' : 'low';
 
     results.push({
       empId: id,
       empName: att?.name || pay?.name || u.name,
       department: att?.department || pay?.department || u.department,
       branch: att?.branch,
-      severity: negative ? 'high' : 'low',
+      severity: sev,
       financialImpact: 0,
       checkId: 'C14',
       fields: {
         'יתרת חופש': vacB,
-        'יתרת מחלה': sickB,
-        'התראה': alerts.join(', '),
+        'יתרת מחלה': u.sickBalance ?? 0,
+        'ניצול חופש החודש': u.vacUsed ?? 0,
+        'התראה': `יתרה גבוהה (${vacB} ימים)`,
       },
     });
   }
 
-  return makeSum('C14', 'יתרות חופש/מחלה נמוכות', `עובדים עם יתרת חופש/מחלה נמוכה מ-${LOW_BALANCE_THRESHOLD} ימים`, results);
+  // מיון לפי יתרה — הגבוהים ראשונים
+  results.sort((a, b) => Number(b.fields['יתרת חופש']) - Number(a.fields['יתרת חופש']));
+
+  return makeSum('C14', 'יתרות חופש גבוהות', `עובדים עם יתרת חופש מעל ${HIGH_BALANCE_THRESHOLD} ימים`, results);
 }

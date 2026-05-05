@@ -112,13 +112,13 @@ export function checkDailyTravel(
   attMap: Map<string, AttendanceRow>
 ): CheckSummary {
   const results: CheckResult[] = [];
-  const MIN = 15, MAX = 80;
+  const MIN = 4, MAX = 16;
 
   for (const att of attMap.values()) {
     if (att.travel === 0 || att.workDays === 0) continue;
     const daily = att.travel / att.workDays;
     if (daily < MIN || daily > MAX) {
-      const severity: Severity = daily < 5 || daily > 150 ? 'high' : 'medium';
+      const severity: Severity = daily < 2 || daily > 30 ? 'high' : 'medium';
       results.push({
         empId: att.empId,
         empName: att.name,
@@ -137,7 +137,7 @@ export function checkDailyTravel(
     }
   }
 
-  return makeSum('Q4', 'נסיעות יומי חריג', 'נסיעות ÷ ימי עבודה מחוץ לטווח 15-80 ₪/יום', 'quality', results);
+  return makeSum('Q4', 'נסיעות יומי חריג', `נסיעות ÷ ימי עבודה מחוץ לטווח ${MIN}-${MAX} ₪/יום`, 'quality', results);
 }
 
 export function checkDailySalary(

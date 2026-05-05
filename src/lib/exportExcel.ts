@@ -85,7 +85,8 @@ export async function exportToExcel(result: AuditResult): Promise<void> {
     // Freeze first row
     ws['!freeze'] = { xSplit: 0, ySplit: 1 };
 
-    const sheetName = check.label.slice(0, 31);
+    // שם גיליון Excel חוקי: עד 31 תווים, ללא / \ : ? * [ ]
+    const sheetName = check.label.replace(/[\\/:?*[\]]/g, '-').slice(0, 31);
     XLSX.utils.book_append_sheet(wb, ws, sheetName);
   }
 
