@@ -13,21 +13,18 @@ export function checkDuplicateComponents(
   const results: CheckResult[] = [];
 
   for (const emp of payMap.values()) {
-    // כפילות אמיתית = אותו רכיב + אותה כמות + אותו מחיר מופיעים יותר מפעם אחת.
-    // פיצול לגיטימי (תעריפים שונים, תקופות שונות) ייצר אותו רכיב עם ערכים שונים — ולא ייסומן.
-    // הקוד (ב/נ/פ/ק) משקף שיטת חישוב, לא מזהה רכיב — לא משמש בבדיקה.
-    const seen = new Map<string, { count: number; totalPayment: number; qty: number | null; price: number | null }>();
+    // קיבוץ לפי שם רכיב בלבד.
+    // הקוד (ב/נ/פ/ק) משקף שיטת חישוב — לא מזהה רכיב, לא בשימוש.
+    const seen = new Map<string, { count: number; totalPayment: number }>();
     for (const c of emp.components) {
       if (!c.componentName) continue;
-      const key = `${c.componentName}|${c.qty ?? ''}|${c.price ?? ''}`;
-      const cur = seen.get(key) ?? { count: 0, totalPayment: 0, qty: c.qty, price: c.price };
+      const cur = seen.get(c.componentName) ?? { count: 0, totalPayment: 0 };
       cur.count += 1;
       cur.totalPayment += Math.abs(c.payment ?? 0);
-      seen.set(key, cur);
+      seen.set(c.componentName, cur);
     }
-    for (const [key, info] of seen.entries()) {
+    for (const [name, info] of seen.entries()) {
       if (info.count <= 1) continue;
-      const name = key.split('|')[0];
       results.push({
         empId: emp.empId,
         empName: emp.name,
@@ -37,8 +34,6 @@ export function checkDuplicateComponents(
         checkId: 'Q2',
         fields: {
           'רכיב': name,
-          'כמות': info.qty,
-          'מחיר': info.price,
           'מספר הופעות': info.count,
           'סכום מצטבר': Math.round(info.totalPayment * 100) / 100,
         },
@@ -46,7 +41,7 @@ export function checkDuplicateComponents(
     }
   }
 
-  return makeSum('Q2', 'רכיבים כפולים', 'רכיב זהה (שם + כמות + מחיר) מופיע יותר מפעם אחת — כפילות אמיתית', 'quality', results);
+  return makeSum('Q2', 'רכיבים כפולים', 'אותו רכיב (לפי שם) מופיע יותר מפעם אחת לאותו עובד', 'quality', results);
 }
 
 export function checkEmptyComponents(
