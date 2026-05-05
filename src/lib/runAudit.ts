@@ -7,7 +7,8 @@ import {
 import {
   checkHourlyRate, checkHours100, checkHours125, checkHours150,
   checkNightHours, checkWorkDays, checkTravel, checkVacation, checkSick,
-  checkMissingPayslip, checkMissingAttendance, checkGlobalEmployees
+  checkMissingPayslip, checkMissingAttendance, checkGlobalEmployees,
+  checkVehicleAndTravel
 } from './checks/businessChecks';
 import {
   checkRateChange, checkDisappearedComponents, checkNewComponents, checkHoursDramaticChange
@@ -40,6 +41,7 @@ export function runAudit(
     () => checkMissingPayslip(attMap, payEmployees),
     () => checkMissingAttendance(attMap, payEmployees),
     () => checkGlobalEmployees(attMap, payEmployees),
+    () => checkVehicleAndTravel(attMap, payEmployees),
   ];
 
   if (prevPayEmployees) {

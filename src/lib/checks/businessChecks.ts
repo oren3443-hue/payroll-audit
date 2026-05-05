@@ -391,6 +391,13 @@ export function checkMissingAttendance(a: Map<string, AttendanceRow>, p: Map<str
   return makeSum('C11', 'חסרים בנוכחות', 'עובדים עם תלוש שכר שאין להם רשומת נוכחות', results);
 }
 
+// רכיבים שעתיים שאסורים לעובד גלובלי
+const FORBIDDEN_HOURLY = [
+  'שכר 100%', 'ש.נוס 125%', 'הפרשי שכר 125%',
+  'ש.נוס 150%', 'ש. נוספות ג', 'שעות נוספות', 'הפרשי שכר 150%',
+  'משמרות',
+];
+
 export function checkGlobalEmployees(a: Map<string, AttendanceRow>, p: Map<string, PayslipEmployee>) {
   const results: CheckResult[] = [];
 
@@ -402,6 +409,14 @@ export function checkGlobalEmployees(a: Map<string, AttendanceRow>, p: Map<strin
     const issues: string[] = [];
     let financialImpact = 0;
     let sev: Severity = 'high';
+
+    // רכיבים שעתיים שאסורים לעובד גלובלי
+    const compNames = new Set(pay.components.map(c => c.componentName));
+    const forbiddenFound = FORBIDDEN_HOURLY.filter(c => compNames.has(c));
+    if (forbiddenFound.length > 0) {
+      issues.push(`רכיבים שעתיים אסורים: ${forbiddenFound.join(', ')}`);
+      sev = 'critical';
+    }
 
     // Hours comparison (only when payslip has hours)
     if (pay.hoursTotal !== null) {
@@ -430,10 +445,44 @@ export function checkGlobalEmployees(a: Map<string, AttendanceRow>, p: Map<strin
         'שעות תלוש': pay.hoursTotal,
         'ימי עבודה נוכחות': att.workDays,
         'ימי עבודה תלוש': Math.round(payActual * 100) / 100,
+        'רכיבים שעתיים אסורים': forbiddenFound.join(', ') || '',
         'בעיות': issues.join(' | '),
       },
     });
   }
 
-  return makeSum('C12', 'עובדים גלובלים', 'עובדים גלובלים — בדיקת שעות וימי עבודה', results);
+  return makeSum('C12', 'עובדים גלובלים', 'עובדים גלובלים — שעות, ימים ובדיקת רכיבים שעתיים אסורים', results);
+}
+
+// בדיקה: עובד עם גם שווי רכב וגם רכיב נסיעות (קונפליקט)
+export function checkVehicleAndTravel(a: Map<string, AttendanceRow>, p: Map<string, PayslipEmployee>) {
+  const results: CheckResult[] = [];
+
+  for (const [id, pay] of p.entries()) {
+    const compNames = pay.components.map(c => c.componentName);
+    const vehicleComp = compNames.find(c => c.includes('שווי רכב'));
+    const travelComp = pay.components.find(c => c.componentName === 'נסיעות');
+    if (!vehicleComp || !travelComp) continue;
+
+    const att = a.get(id);
+    const travelPmt = travelComp.payment ?? 0;
+
+    results.push({
+      empId: id,
+      empName: att?.name || pay.name,
+      department: att?.department || pay.department,
+      branch: att?.branch,
+      severity: 'high',
+      financialImpact: travelPmt,
+      checkId: 'C13',
+      fields: {
+        'גלובלי': pay.isGlobal ? 'כן' : 'לא',
+        'רכיב שווי רכב': vehicleComp,
+        'סכום נסיעות (₪)': travelPmt,
+        'המלצה': 'לאפס נסיעות — קיים שווי רכב',
+      },
+    });
+  }
+
+  return makeSum('C13', 'שווי רכב + נסיעות', 'עובדים עם רכיב שווי רכב וגם רכיב נסיעות בו-זמנית', results);
 }
