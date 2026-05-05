@@ -13,37 +13,40 @@ export function checkDuplicateComponents(
   const results: CheckResult[] = [];
 
   for (const emp of payMap.values()) {
-    // קיבוץ לפי שם רכיב (componentCode זו קטגוריה: ב/נ/פ/ק — לא מזהה ייחודי)
-    const seen = new Map<string, { count: number; totalPayment: number; code: string }>();
+    // כפילות אמיתית = אותו רכיב + אותה כמות + אותו מחיר מופיעים יותר מפעם אחת.
+    // פיצול לגיטימי (תעריפים שונים, תקופות שונות) ייצר אותו רכיב עם ערכים שונים — ולא ייסומן.
+    // הקוד (ב/נ/פ/ק) משקף שיטת חישוב, לא מזהה רכיב — לא משמש בבדיקה.
+    const seen = new Map<string, { count: number; totalPayment: number; qty: number | null; price: number | null }>();
     for (const c of emp.components) {
-      const key = c.componentName;
-      if (!key) continue;
-      const cur = seen.get(key) ?? { count: 0, totalPayment: 0, code: c.componentCode };
+      if (!c.componentName) continue;
+      const key = `${c.componentName}|${c.qty ?? ''}|${c.price ?? ''}`;
+      const cur = seen.get(key) ?? { count: 0, totalPayment: 0, qty: c.qty, price: c.price };
       cur.count += 1;
       cur.totalPayment += Math.abs(c.payment ?? 0);
       seen.set(key, cur);
     }
-    for (const [name, info] of seen.entries()) {
-      if (info.count > 1) {
-        results.push({
-          empId: emp.empId,
-          empName: emp.name,
-          department: emp.department,
-          severity: 'critical',
-          financialImpact: info.totalPayment,
-          checkId: 'Q2',
-          fields: {
-            'רכיב': name,
-            'קוד קטגוריה': info.code,
-            'מספר הופעות': info.count,
-            'סכום מצטבר': Math.round(info.totalPayment * 100) / 100,
-          },
-        });
-      }
+    for (const [key, info] of seen.entries()) {
+      if (info.count <= 1) continue;
+      const name = key.split('|')[0];
+      results.push({
+        empId: emp.empId,
+        empName: emp.name,
+        department: emp.department,
+        severity: 'critical',
+        financialImpact: info.totalPayment,
+        checkId: 'Q2',
+        fields: {
+          'רכיב': name,
+          'כמות': info.qty,
+          'מחיר': info.price,
+          'מספר הופעות': info.count,
+          'סכום מצטבר': Math.round(info.totalPayment * 100) / 100,
+        },
+      });
     }
   }
 
-  return makeSum('Q2', 'רכיבים כפולים', 'אותו רכיב מופיע יותר מפעם אחת לאותו עובד', 'quality', results);
+  return makeSum('Q2', 'רכיבים כפולים', 'רכיב זהה (שם + כמות + מחיר) מופיע יותר מפעם אחת — כפילות אמיתית', 'quality', results);
 }
 
 export function checkEmptyComponents(
@@ -174,14 +177,17 @@ export function checkDailySalary(
     const stats = deptStats.get(att.department);
     if (!stats || stats.std < 1) continue;
     const daily = att.salary / att.workDays;
+    // דלג על שכר יומי נמוך מאוד — סביר שזה משרה חלקית/תקופה חלקית, לא טעות
+    if (daily < 50) continue;
     const zscore = Math.abs(daily - stats.avg) / stats.std;
-    if (zscore > 2) {
+    // הקשחה: דורש לפחות 3 סטיות תקן (במקום 2) להפחתת אזהרות שווא
+    if (zscore > 3) {
       results.push({
         empId: att.empId,
         empName: att.name,
         department: att.department,
         branch: att.branch,
-        severity: zscore > 3 ? 'high' : 'medium',
+        severity: zscore > 4 ? 'high' : 'medium',
         financialImpact: 0,
         checkId: 'Q5',
         fields: {
@@ -195,7 +201,7 @@ export function checkDailySalary(
     }
   }
 
-  return makeSum('Q5', 'שכר יומי חריג', 'שכר ÷ ימי עבודה חריג ב-2 סטיות תקן מממוצע המחלקה', 'quality', results);
+  return makeSum('Q5', 'שכר יומי חריג', 'שכר ÷ ימי עבודה חריג ב-3+ סטיות תקן מממוצע המחלקה (פוסח על משרה חלקית)', 'quality', results);
 }
 
 function makeSum(

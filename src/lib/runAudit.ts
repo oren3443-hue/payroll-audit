@@ -35,13 +35,13 @@ export function runAudit(
     () => checkHours125(attMap, payEmployees),
     () => checkHours150(attMap, payEmployees),
     () => checkNightHours(attMap, payEmployees),
-    () => checkWorkDays(attMap, payEmployees),
+    () => checkWorkDays(attMap, payEmployees, utilization),
     () => checkTravel(attMap, payEmployees),
     () => checkVacation(attMap, payEmployees),
     () => checkSick(attMap, payEmployees),
     () => checkMissingPayslip(attMap, payEmployees),
     () => checkMissingAttendance(attMap, payEmployees),
-    () => checkGlobalEmployees(attMap, payEmployees),
+    () => checkGlobalEmployees(attMap, payEmployees, utilization),
     () => checkVehicleAndTravel(attMap, payEmployees),
   ];
 

@@ -54,6 +54,20 @@ export function extractMonthFromPayslip(rows: unknown[][]): number | null {
   return null;
 }
 
+// מחלץ שנה מנתוני התלוש (col[1] = שנת מס)
+export function extractYearFromPayslip(rows: unknown[][]): number | null {
+  for (let i = 0; i < Math.min(20, rows.length); i++) {
+    const row = rows[i] as unknown[];
+    if (!row) continue;
+    const y = row[1];
+    if (y !== null && y !== undefined && y !== '') {
+      const n = Number(y);
+      if (!isNaN(n) && n >= 2000 && n <= 2100) return n;
+    }
+  }
+  return null;
+}
+
 export function parseExcelFile(file: File): Promise<FileDetectionResult> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

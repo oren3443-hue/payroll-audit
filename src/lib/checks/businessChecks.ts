@@ -158,22 +158,37 @@ export function checkNightHours(a: Map<string, AttendanceRow>, p: Map<string, Pa
   return makeSum('C5', 'הפרש שעות לילה', 'הפרש בין שעות לילה בנוכחות לרכיב משמרות בתלוש', results);
 }
 
-export function checkWorkDays(a: Map<string, AttendanceRow>, p: Map<string, PayslipEmployee>) {
+export function checkWorkDays(
+  a: Map<string, AttendanceRow>,
+  p: Map<string, PayslipEmployee>,
+  util?: Map<string, UtilizationRow>
+) {
   const results: CheckResult[] = [];
 
   for (const [id, att] of a.entries()) {
     const pay = p.get(id);
     if (!pay) continue;
+    const u = util?.get(id);
 
     const attDays = att.workDays;
-    const payTotalDays = pay.workDays ?? 0;
-    const payVac = pay.vacationDays ?? 0;
-    const paySick = pay.sickDays ?? 0;
-    const attReserve = att.reserveDays;
 
-    const payActual = payTotalDays - payVac - paySick - attReserve;
-    const diff = attDays - payActual;
+    // נתונים ממיכפל אם קיימים, אחרת חישוב מהתלוש
+    let paidDays: number, actualDays: number, source: string;
+    let stdDays: number | null = null;
+    if (u && u.actualDays !== null) {
+      paidDays = u.paidDays ?? 0;
+      actualDays = u.actualDays;
+      stdDays = u.stdDays;
+      source = 'מיכפל';
+    } else {
+      paidDays = pay.workDays ?? 0;
+      const payVac = pay.vacationDays ?? 0;
+      const paySick = pay.sickDays ?? 0;
+      actualDays = paidDays - payVac - paySick - att.reserveDays;
+      source = 'מחושב';
+    }
 
+    const diff = attDays - actualDays;
     if (Math.abs(diff) < 0.01) continue;
 
     let sev: Severity;
@@ -187,17 +202,16 @@ export function checkWorkDays(a: Map<string, AttendanceRow>, p: Map<string, Pays
       severity: sev, financialImpact: Math.abs(diff * dailyRate), checkId: 'C6',
       fields: {
         'ימי עבודה נוכחות': attDays,
-        'סה"כ ימים תלוש': payTotalDays,
-        'ימי חופשה תלוש': payVac,
-        'ימי מחלה תלוש': paySick,
-        'מילואים': attReserve,
-        'ימי עבודה בפועל תלוש': Math.round(payActual * 100) / 100,
-        'הפרש ימים': Math.round(diff * 100) / 100,
+        'י"ע משולמים (תלוש)': paidDays,
+        'תקן י"ע': stdDays,
+        'י"ע בפועל (תלוש)': Math.round(actualDays * 100) / 100,
+        'הפרש בפועל': Math.round(diff * 100) / 100,
+        'מקור נתון': source,
       },
     });
   }
 
-  return makeSum('C6', 'הפרש ימי עבודה', 'השוואת ימי עבודה בין מערכת הנוכחות לתלוש', results);
+  return makeSum('C6', 'הפרש ימי עבודה', 'נוכחות מול י"ע בפועל מקובץ הניצולים (מיכפל). מציג גם משולמים+תקן.', results);
 }
 
 export function checkTravel(a: Map<string, AttendanceRow>, p: Map<string, PayslipEmployee>) {
@@ -411,13 +425,18 @@ function isHolidayComponent(name: string): boolean {
   return name.startsWith('חג:') || name.startsWith('חג ');
 }
 
-export function checkGlobalEmployees(a: Map<string, AttendanceRow>, p: Map<string, PayslipEmployee>) {
+export function checkGlobalEmployees(
+  a: Map<string, AttendanceRow>,
+  p: Map<string, PayslipEmployee>,
+  util?: Map<string, UtilizationRow>
+) {
   const results: CheckResult[] = [];
 
   for (const [id, pay] of p.entries()) {
     if (!pay.isGlobal) continue;
     const att = a.get(id);
     if (!att) continue;
+    const u = util?.get(id);
 
     const issues: string[] = [];
     let financialImpact = 0;
@@ -435,20 +454,31 @@ export function checkGlobalEmployees(a: Map<string, AttendanceRow>, p: Map<strin
       sev = 'critical';
     }
 
-    // Hours comparison (only when payslip has hours)
-    if (pay.hoursTotal !== null) {
-      const hDiff = att.hoursTotal - pay.hoursTotal;
+    // נתוני שעות וימים — מקובץ הניצולים אם קיים
+    const paidHours   = u?.paidHours ?? null;
+    const actualHours = u?.actualHours ?? null;
+    const paidDays    = u?.paidDays ?? null;
+    const stdDays     = u?.stdDays ?? null;
+    let actualDays    = u?.actualDays ?? null;
+
+    if (actualDays === null) {
+      actualDays = (pay.workDays ?? 0) - (pay.vacationDays ?? 0) - (pay.sickDays ?? 0) - att.reserveDays;
+    }
+
+    // Hours comparison
+    const hoursForCompare = actualHours ?? paidHours ?? pay.hoursTotal;
+    if (hoursForCompare !== null) {
+      const hDiff = att.hoursTotal - hoursForCompare;
       if (Math.abs(hDiff) >= 0.1) {
-        issues.push(`שעות: ${att.hoursTotal} vs ${pay.hoursTotal}`);
+        issues.push(`שעות: נוכחות ${att.hoursTotal} vs תלוש ${hoursForCompare}`);
         if (Math.abs(hDiff) >= 5) { sev = 'critical'; financialImpact += Math.abs(hDiff) * 50; }
       }
     }
 
     // Days comparison
-    const payActual = (pay.workDays ?? 0) - (pay.vacationDays ?? 0) - (pay.sickDays ?? 0) - att.reserveDays;
-    const dayDiff = att.workDays - payActual;
+    const dayDiff = att.workDays - (actualDays ?? 0);
     if (Math.abs(dayDiff) >= 0.01) {
-      issues.push(`ימים: ${att.workDays} vs ${Math.round(payActual * 100) / 100}`);
+      issues.push(`ימים: נוכחות ${att.workDays} vs בפועל ${Math.round((actualDays ?? 0) * 100) / 100}`);
       if (Math.abs(dayDiff) >= 5) sev = 'critical';
     }
 
@@ -458,17 +488,20 @@ export function checkGlobalEmployees(a: Map<string, AttendanceRow>, p: Map<strin
       empId: id, empName: att.name, department: att.department, branch: att.branch,
       severity: sev, financialImpact, checkId: 'C12',
       fields: {
-        'שעות נוכחות': att.hoursTotal,
-        'שעות תלוש': pay.hoursTotal,
-        'ימי עבודה נוכחות': att.workDays,
-        'ימי עבודה תלוש': Math.round(payActual * 100) / 100,
+        'ש"ע נוכחות': att.hoursTotal,
+        'ש"ע משולמות': paidHours,
+        'ש"ע בפועל': actualHours,
+        'י"ע נוכחות': att.workDays,
+        'י"ע משולמים': paidDays,
+        'תקן י"ע': stdDays,
+        'י"ע בפועל': actualDays !== null ? Math.round(actualDays * 100) / 100 : null,
         'רכיבים אסורים': forbiddenFound.join(', ') || '',
         'בעיות': issues.join(' | '),
       },
     });
   }
 
-  return makeSum('C12', 'עובדים גלובלים', 'עובדים גלובלים — שעות, ימים ובדיקת רכיבים שעתיים אסורים', results);
+  return makeSum('C12', 'עובדים גלובלים', 'גלובלים — שעות/ימים משולמים-בפועל מהניצולים + בדיקת רכיבים אסורים', results);
 }
 
 // בדיקה: עובד עם גם שווי רכב וגם רכיב נסיעות (קונפליקט)

@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { Upload, FileSpreadsheet, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
-import { parseExcelFile, extractMonthFromPayslip } from '../lib/detectFileType';
+import { parseExcelFile, extractMonthFromPayslip, extractYearFromPayslip } from '../lib/detectFileType';
 import { parseAttendance } from '../lib/parseAttendance';
 import { parsePayslips } from '../lib/parsePayslips';
 import { parseUtilization } from '../lib/parseUtilization';
@@ -19,7 +19,8 @@ interface Props {
     att: AttendanceRow[],
     pay: Map<string, PayslipEmployee>,
     prev?: Map<string, PayslipEmployee>,
-    util?: Map<string, UtilizationRow>
+    util?: Map<string, UtilizationRow>,
+    period?: { month: number; year: number }
   ) => void;
 }
 
@@ -37,6 +38,7 @@ export function UploadZone({ onReady }: Props) {
   const [pendingPayRows, setPendingPayRows] = useState<unknown[][] | null>(null);
   // חודשים שזוהו לקבצי תלוש (לזיהוי חכם מי קודם ומי נוכחי)
   const [payMonth, setPayMonth] = useState<number | null>(null);
+  const [payYear, setPayYear] = useState<number | null>(null);
   const [prevMonth, setPrevMonth] = useState<number | null>(null);
   const [pendingPrevRows, setPendingPrevRows] = useState<unknown[][] | null>(null);
 
@@ -112,10 +114,12 @@ export function UploadZone({ onReady }: Props) {
           newPay = employees;
           pendingPay = newUtil ? null : detected.rows;
           curPayMonth = extractMonthFromPayslip(detected.rows);
+          const curPayYear = extractYearFromPayslip(detected.rows);
           newFiles.push({ type: 'payslips', filename: file.name, rowCount: employees.size });
           setPayData(employees);
           setPendingPayRows(pendingPay);
           setPayMonth(curPayMonth);
+          if (curPayYear !== null) setPayYear(curPayYear);
         } else if (detected.type === 'prevPayslips') {
           const { employees } = parsePayslips(detected.rows);
           newPrev = employees;
@@ -316,7 +320,13 @@ export function UploadZone({ onReady }: Props) {
         {/* Run button */}
         <button
           disabled={!canRun}
-          onClick={() => canRun && onReady(attData!, payData!, prevPayData ?? undefined, utilData ?? undefined)}
+          onClick={() => canRun && onReady(
+            attData!,
+            payData!,
+            prevPayData ?? undefined,
+            utilData ?? undefined,
+            (payMonth !== null && payYear !== null) ? { month: payMonth, year: payYear } : undefined
+          )}
           className={cn(
             'mt-6 w-full py-4 rounded-2xl text-lg font-semibold transition-all',
             canRun

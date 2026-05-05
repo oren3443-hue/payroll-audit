@@ -13,6 +13,7 @@ import { exportImportFile } from '../lib/exportImport';
 interface Props {
   result: AuditResult;
   payslips: Map<string, PayslipEmployee>;
+  period: { month: number; year: number } | null;
   onReset: () => void;
   onExport: () => void;
 }
@@ -21,7 +22,7 @@ type Tab = 'checks' | 'departments' | 'employees';
 
 const CHECK_ORDER = ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'C10', 'C11', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C12', 'C13', 'C14', 'P1', 'P2', 'P3', 'P4'];
 
-export function Dashboard({ result, payslips, onReset, onExport }: Props) {
+export function Dashboard({ result, payslips, period, onReset, onExport }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('checks');
   const [selectedCheck, setSelectedCheck] = useState<string | null>(null);
   const [selectedEmpId, setSelectedEmpId] = useState<string | null>(null);
@@ -57,8 +58,11 @@ export function Dashboard({ result, payslips, onReset, onExport }: Props) {
           <div className="flex items-center gap-2">
             <button
               onClick={() => {
-                const now = new Date();
-                exportImportFile(result, payslips, now.getFullYear(), now.getMonth() + 1);
+                if (!period) {
+                  alert('לא ניתן לזהות חודש/שנה מנתוני התלוש. ודא שהקובץ מכיל את עמודות "שנת מס" ו"חודש".');
+                  return;
+                }
+                exportImportFile(result, payslips, period.year, period.month);
               }}
               className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700 transition-colors"
               title="קובץ לקליטה במיכפל — מאפס רכיבים שעתיים אצל גלובלים שסומנו לתיקון"
