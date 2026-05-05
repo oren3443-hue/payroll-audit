@@ -391,13 +391,25 @@ export function checkMissingAttendance(a: Map<string, AttendanceRow>, p: Map<str
   return makeSum('C11', 'חסרים בנוכחות', 'עובדים עם תלוש שכר שאין להם רשומת נוכחות', results);
 }
 
-// רכיבים שעתיים שאסורים לעובד גלובלי
-// (שעות נוספות וש. נוספות ג מותרים — שייכים לרכיב 2 הגלובלי)
+// רכיבים אסורים לעובד גלובלי — לפי קודי מיכפל:
+// 1=שכר 100%, 7=ש.נוס 125%, 9=אבל, 10=חופש, 14=ש.נוס 150%, 15=מחלה,
+// 29=משמרות, 30=נוספות.משמרות, 137-143=חגים
+// (שעות נוספות[69] וש. נוספות ג[125] מותרים — חלק מרכיב 2 הגלובלי)
 const FORBIDDEN_HOURLY = [
-  'שכר 100%', 'ש.נוס 125%', 'הפרשי שכר 125%',
-  'ש.נוס 150%', 'הפרשי שכר 150%',
-  'משמרות',
+  'שכר 100%',         // 1
+  'ש.נוס 125%',       // 7
+  'אבל',              // 9
+  'חופש',             // 10
+  'ש.נוס 150%',       // 14
+  'מחלה',             // 15
+  'משמרות',           // 29
+  'נוספות.משמרות',    // 30
 ];
+
+// רכיבי חגים (137-143) מזוהים לפי תחילית "חג:"
+function isHolidayComponent(name: string): boolean {
+  return name.startsWith('חג:') || name.startsWith('חג ');
+}
 
 export function checkGlobalEmployees(a: Map<string, AttendanceRow>, p: Map<string, PayslipEmployee>) {
   const results: CheckResult[] = [];
@@ -411,11 +423,15 @@ export function checkGlobalEmployees(a: Map<string, AttendanceRow>, p: Map<strin
     let financialImpact = 0;
     let sev: Severity = 'high';
 
-    // רכיבים שעתיים שאסורים לעובד גלובלי
-    const compNames = new Set(pay.components.map(c => c.componentName));
-    const forbiddenFound = FORBIDDEN_HOURLY.filter(c => compNames.has(c));
+    // רכיבים אסורים לעובד גלובלי
+    const compNames = pay.components.map(c => c.componentName);
+    const compSet = new Set(compNames);
+    const forbiddenFound: string[] = [
+      ...FORBIDDEN_HOURLY.filter(c => compSet.has(c)),
+      ...compNames.filter(isHolidayComponent),
+    ];
     if (forbiddenFound.length > 0) {
-      issues.push(`רכיבים שעתיים אסורים: ${forbiddenFound.join(', ')}`);
+      issues.push(`רכיבים אסורים: ${forbiddenFound.join(', ')}`);
       sev = 'critical';
     }
 
@@ -446,7 +462,7 @@ export function checkGlobalEmployees(a: Map<string, AttendanceRow>, p: Map<strin
         'שעות תלוש': pay.hoursTotal,
         'ימי עבודה נוכחות': att.workDays,
         'ימי עבודה תלוש': Math.round(payActual * 100) / 100,
-        'רכיבים שעתיים אסורים': forbiddenFound.join(', ') || '',
+        'רכיבים אסורים': forbiddenFound.join(', ') || '',
         'בעיות': issues.join(' | '),
       },
     });

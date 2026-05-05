@@ -50,7 +50,7 @@ export async function exportImportFile(
   // המרת רשימת רכיבים אסורים → אילו עמודות לאפס
   const importRows: unknown[][] = [];
   for (const r of toFix) {
-    const forbiddenStr = String(r.fields['רכיבים שעתיים אסורים'] ?? '');
+    const forbiddenStr = String(r.fields['רכיבים אסורים'] ?? r.fields['רכיבים שעתיים אסורים'] ?? '');
     const has100   = forbiddenStr.includes('שכר 100%');
     const has125   = /125%/.test(forbiddenStr);
     const has150   = /150%/.test(forbiddenStr);
