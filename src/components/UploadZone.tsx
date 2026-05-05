@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { Upload, FileSpreadsheet, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
-import { parseExcelFile } from '../lib/detectFileType';
+import { parseExcelFile, extractMonthFromPayslip } from '../lib/detectFileType';
 import { parseAttendance } from '../lib/parseAttendance';
 import { parsePayslips } from '../lib/parsePayslips';
 import { parseUtilization } from '../lib/parseUtilization';
@@ -35,6 +35,10 @@ export function UploadZone({ onReady }: Props) {
   const [prevPayData, setPrevPayData] = useState<Map<string, PayslipEmployee> | null>(null);
   const [utilData, setUtilData] = useState<Map<string, UtilizationRow> | null>(null);
   const [pendingPayRows, setPendingPayRows] = useState<unknown[][] | null>(null);
+  // חודשים שזוהו לקבצי תלוש (לזיהוי חכם מי קודם ומי נוכחי)
+  const [payMonth, setPayMonth] = useState<number | null>(null);
+  const [prevMonth, setPrevMonth] = useState<number | null>(null);
+  const [pendingPrevRows, setPendingPrevRows] = useState<unknown[][] | null>(null);
 
   const processFiles = useCallback(async (fileList: File[]) => {
     setLoading(true);
@@ -46,6 +50,9 @@ export function UploadZone({ onReady }: Props) {
     let newPrev = prevPayData;
     let newUtil = utilData;
     let pendingPay = pendingPayRows;
+    let pendingPrev = pendingPrevRows;
+    let curPayMonth = payMonth;
+    let curPrevMonth = prevMonth;
     const newFiles = [...files];
 
     try {
@@ -59,9 +66,33 @@ export function UploadZone({ onReady }: Props) {
           else detected.type = 'prevPayslips';
         }
 
-        // If already have a file of this type, treat next payslip as prev
+        // אם כבר יש תלוש "נוכחי" וכעת מגיע עוד אחד — נקבע לפי מספר חודש
         if (detected.type === 'payslips' && newPay) {
-          detected.type = 'prevPayslips';
+          const incomingMonth = extractMonthFromPayslip(detected.rows);
+          if (incomingMonth !== null && curPayMonth !== null) {
+            if (incomingMonth > curPayMonth) {
+              // החדש מאוחר יותר → הוא הופך לנוכחי, הקיים יורד לקודם
+              const oldRows = pendingPay;
+              const oldMonth = curPayMonth;
+              const oldFile = newFiles.find(f => f.type === 'payslips');
+              // נסמן את הישן כקודם
+              if (oldFile) oldFile.type = 'prevPayslips';
+              if (newPay) {
+                newPrev = newPay;
+                setPrevPayData(newPay);
+                curPrevMonth = oldMonth;
+                setPrevMonth(oldMonth);
+                pendingPrev = oldRows;
+                setPendingPrevRows(oldRows);
+              }
+              // נמשיך לעבד את החדש כתלוש נוכחי (לא prev)
+            } else {
+              detected.type = 'prevPayslips';
+            }
+          } else {
+            // אין מידע על חודש — fallback לפי סדר העלאה
+            detected.type = 'prevPayslips';
+          }
         }
 
         if (detected.type === 'attendance') {
@@ -79,15 +110,21 @@ export function UploadZone({ onReady }: Props) {
             setMissingCols(prev => [...prev, ...missingColumns]);
           }
           newPay = employees;
-          pendingPay = newUtil ? null : detected.rows;  // שמור rows אם אין עדיין util
+          pendingPay = newUtil ? null : detected.rows;
+          curPayMonth = extractMonthFromPayslip(detected.rows);
           newFiles.push({ type: 'payslips', filename: file.name, rowCount: employees.size });
           setPayData(employees);
           setPendingPayRows(pendingPay);
+          setPayMonth(curPayMonth);
         } else if (detected.type === 'prevPayslips') {
           const { employees } = parsePayslips(detected.rows);
           newPrev = employees;
+          curPrevMonth = extractMonthFromPayslip(detected.rows);
+          pendingPrev = detected.rows;
           newFiles.push({ type: 'prevPayslips', filename: file.name, rowCount: employees.size });
           setPrevPayData(employees);
+          setPrevMonth(curPrevMonth);
+          setPendingPrevRows(detected.rows);
         } else if (detected.type === 'utilization') {
           const { rows: utilRows, missingColumns } = parseUtilization(detected.rows);
           if (missingColumns.length > 0) {
@@ -119,7 +156,7 @@ export function UploadZone({ onReady }: Props) {
 
     setFiles(newFiles.slice(-5));
     setLoading(false);
-  }, [attData, payData, prevPayData, utilData, pendingPayRows, files]);
+  }, [attData, payData, prevPayData, utilData, pendingPayRows, pendingPrevRows, payMonth, prevMonth, files]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -140,12 +177,12 @@ export function UploadZone({ onReady }: Props) {
     setFiles(f => f.filter(x => x.filename !== filename));
     const removed = files.find(f => f.filename === filename);
     if (removed?.type === 'attendance') setAttData(null);
-    if (removed?.type === 'payslips') setPayData(null);
-    if (removed?.type === 'prevPayslips') setPrevPayData(null);
+    if (removed?.type === 'payslips') { setPayData(null); setPayMonth(null); setPendingPayRows(null); }
+    if (removed?.type === 'prevPayslips') { setPrevPayData(null); setPrevMonth(null); setPendingPrevRows(null); }
     if (removed?.type === 'utilization') setUtilData(null);
   };
 
-  const canRun = attData && payData;
+  const canRun = attData && payData && utilData;
 
   const FILE_TYPE_LABELS: Record<string, string> = {
     attendance: 'נוכחות',
@@ -198,7 +235,7 @@ export function UploadZone({ onReady }: Props) {
                 <p className="text-lg font-medium text-gray-700">גרור קבצים לכאן</p>
                 <p className="text-sm text-gray-500 mt-1">או לחץ לבחירה — עד 3 קבצי Excel</p>
               </div>
-              <p className="text-xs text-gray-400">נוכחות + תלושים (+ נוכחות וניצולים, חודש קודם — אופציונליים)</p>
+              <p className="text-xs text-gray-400">נוכחות + תלושים + נוכחות וניצולים (+ תלושים חודש קודם — אופציונלי)</p>
             </div>
           )}
         </div>
@@ -273,7 +310,6 @@ export function UploadZone({ onReady }: Props) {
             loaded={!!utilData}
             count={utilData?.size}
             unit="עובדים"
-            optional
           />
         </div>
 
@@ -288,7 +324,7 @@ export function UploadZone({ onReady }: Props) {
               : 'bg-gray-100 text-gray-400 cursor-not-allowed'
           )}
         >
-          {canRun ? '▶ הרץ ביקורת שכר' : 'העלה קובץ נוכחות + תלושים כדי להתחיל'}
+          {canRun ? '▶ הרץ ביקורת שכר' : 'העלה נוכחות + תלושים + נוכחות וניצולים כדי להתחיל'}
         </button>
       </div>
     </div>

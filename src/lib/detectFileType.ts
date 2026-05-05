@@ -29,8 +29,29 @@ export function detectFileType(rows: unknown[][], filename: string): FileDetecti
 
   if (utilScore >= 2) return 'utilization';
   if (attScore >= 2) return 'attendance';
-  if (payScore >= 2) return 'payslips';
+  if (payScore >= 2) {
+    // רמז משם הקובץ — אם כתוב "קודם" / "prev" / "previous"
+    const fnameLower = filename.toLowerCase();
+    if (fnameLower.includes('קודם') || fnameLower.includes('prev') || fnameLower.includes('previous')) {
+      return 'prevPayslips';
+    }
+    return 'payslips';
+  }
   return 'unknown';
+}
+
+// מחלץ מספר חודש מנתוני התלוש (col[2] בשורת נתונים ראשונה)
+export function extractMonthFromPayslip(rows: unknown[][]): number | null {
+  for (let i = 0; i < Math.min(20, rows.length); i++) {
+    const row = rows[i] as unknown[];
+    if (!row) continue;
+    const m = row[2];
+    if (m !== null && m !== undefined && m !== '') {
+      const n = Number(m);
+      if (!isNaN(n) && n >= 1 && n <= 12) return n;
+    }
+  }
+  return null;
 }
 
 export function parseExcelFile(file: File): Promise<FileDetectionResult> {
