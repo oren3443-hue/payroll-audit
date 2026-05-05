@@ -1,4 +1,4 @@
-import { CheckResult, CheckSummary, AttendanceRow, Severity, CheckId } from '../types';
+import { CheckResult, CheckSummary, AttendanceRow, Severity, CheckId, UtilizationRow } from '../types';
 import { PayslipEmployee, getComponentQty, getComponentPayment } from '../parsePayslips';
 
 function abs(v: number) { return Math.abs(v); }
@@ -485,4 +485,49 @@ export function checkVehicleAndTravel(a: Map<string, AttendanceRow>, p: Map<stri
   }
 
   return makeSum('C13', 'שווי רכב + נסיעות', 'עובדים עם רכיב שווי רכב וגם רכיב נסיעות בו-זמנית', results);
+}
+
+// בדיקה: יתרות חופש/מחלה נמוכות (מקובץ הניצולים)
+const LOW_BALANCE_THRESHOLD = 5;
+
+export function checkLowBalances(
+  a: Map<string, AttendanceRow>,
+  p: Map<string, PayslipEmployee>,
+  util: Map<string, UtilizationRow>
+) {
+  const results: CheckResult[] = [];
+
+  for (const [id, u] of util.entries()) {
+    const vacB = u.vacBalance ?? 0;
+    const sickB = u.sickBalance ?? 0;
+    const lowVac = vacB < LOW_BALANCE_THRESHOLD;
+    const lowSick = sickB < LOW_BALANCE_THRESHOLD;
+    if (!lowVac && !lowSick) continue;
+
+    const att = a.get(id);
+    const pay = p.get(id);
+    const negative = vacB < 0 || sickB < 0;
+
+    const alerts: string[] = [];
+    if (negative) alerts.push('יתרה שלילית');
+    if (lowVac) alerts.push(`חופש: ${vacB}`);
+    if (lowSick) alerts.push(`מחלה: ${sickB}`);
+
+    results.push({
+      empId: id,
+      empName: att?.name || pay?.name || u.name,
+      department: att?.department || pay?.department || u.department,
+      branch: att?.branch,
+      severity: negative ? 'high' : 'low',
+      financialImpact: 0,
+      checkId: 'C14',
+      fields: {
+        'יתרת חופש': vacB,
+        'יתרת מחלה': sickB,
+        'התראה': alerts.join(', '),
+      },
+    });
+  }
+
+  return makeSum('C14', 'יתרות חופש/מחלה נמוכות', `עובדים עם יתרת חופש/מחלה נמוכה מ-${LOW_BALANCE_THRESHOLD} ימים`, results);
 }

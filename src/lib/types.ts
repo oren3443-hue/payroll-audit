@@ -26,6 +26,25 @@ export interface AttendanceRow {
   reserveDays: number;    // col 25 - ימי מילואים
 }
 
+export interface UtilizationRow {
+  empId: string;          // col 2 - מספר עובד
+  name: string;           // col 3 - שם העובד
+  department: string;     // col 4 - שם מחלקה
+  salaryBase: string;     // col 6 - 'חדשי' / 'לפי שעות'
+  paidDays: number | null;     // col 9  - י"ע משולמים
+  paidHours: number | null;    // col 10 - ש"ע משולמות
+  absenceHours: number | null; // col 11 - שעות העדרות
+  stdDays: number | null;      // col 12 - תקן י"ע
+  actualDays: number | null;   // col 13 - י"ע בפועל
+  stdHours: number | null;     // col 14 - תקן ש"ע
+  actualHours: number | null;  // col 15 - ש"ע בפועל
+  vacUsed: number | null;      // col 17 - חופשה ניצול
+  vacBalance: number | null;   // col 18 - חופשה יתרה
+  sickUsed: number | null;     // col 20 - מחלה ניצול
+  sickBalance: number | null;  // col 21 - מחלה יתרה
+  reserveDays: number | null;  // col 22 - מילואים
+}
+
 export interface PayslipComponent {
   componentName: string;  // col 6
   componentCode: string;  // col 7
@@ -55,7 +74,7 @@ export interface IssueStatus {
 
 export type CheckId =
   | 'Q1' | 'Q2' | 'Q3' | 'Q4' | 'Q5'
-  | 'C1' | 'C2' | 'C3' | 'C4' | 'C5' | 'C6' | 'C7' | 'C8' | 'C9' | 'C10' | 'C11' | 'C12' | 'C13'
+  | 'C1' | 'C2' | 'C3' | 'C4' | 'C5' | 'C6' | 'C7' | 'C8' | 'C9' | 'C10' | 'C11' | 'C12' | 'C13' | 'C14'
   | 'P1' | 'P2' | 'P3' | 'P4';
 
 export interface CheckResult {
@@ -94,7 +113,7 @@ export interface AuditResult {
 }
 
 export interface FileDetectionResult {
-  type: 'attendance' | 'payslips' | 'prevPayslips' | 'unknown';
+  type: 'attendance' | 'payslips' | 'prevPayslips' | 'utilization' | 'unknown';
   rows: unknown[][];
   filename: string;
 }

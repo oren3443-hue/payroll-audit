@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { UploadZone } from './components/UploadZone';
 import { Dashboard } from './components/Dashboard';
-import { AuditResult, AttendanceRow } from './lib/types';
+import { AuditResult, AttendanceRow, UtilizationRow } from './lib/types';
 import { PayslipEmployee } from './lib/parsePayslips';
 import { runAudit } from './lib/runAudit';
 import { exportToExcel } from './lib/exportExcel';
@@ -23,14 +23,15 @@ export default function App() {
   const handleReady = useCallback(async (
     att: AttendanceRow[],
     pay: Map<string, PayslipEmployee>,
-    prev?: Map<string, PayslipEmployee>
+    prev?: Map<string, PayslipEmployee>,
+    util?: Map<string, UtilizationRow>
   ) => {
     setAppState('running');
-    setProgress({ done: 0, total: 17 + (prev ? 4 : 0), label: 'מתחיל...' });
+    setProgress({ done: 0, total: 18 + (prev ? 4 : 0) + (util ? 1 : 0), label: 'מתחיל...' });
 
     await new Promise(r => setTimeout(r, 50));
 
-    const auditResult = runAudit(att, pay, prev, (done, total, label) => {
+    const auditResult = runAudit(att, pay, prev, util, (done, total, label) => {
       setProgress({ done, total, label });
     });
 

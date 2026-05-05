@@ -1,4 +1,4 @@
-import { AttendanceRow, AuditResult, CheckSummary } from './types';
+import { AttendanceRow, AuditResult, CheckSummary, UtilizationRow } from './types';
 import { PayslipEmployee } from './parsePayslips';
 import {
   checkDuplicateComponents, checkEmptyComponents, checkPhantomEmployees,
@@ -8,7 +8,7 @@ import {
   checkHourlyRate, checkHours100, checkHours125, checkHours150,
   checkNightHours, checkWorkDays, checkTravel, checkVacation, checkSick,
   checkMissingPayslip, checkMissingAttendance, checkGlobalEmployees,
-  checkVehicleAndTravel
+  checkVehicleAndTravel, checkLowBalances
 } from './checks/businessChecks';
 import {
   checkRateChange, checkDisappearedComponents, checkNewComponents, checkHoursDramaticChange
@@ -18,6 +18,7 @@ export function runAudit(
   attEmployees: AttendanceRow[],
   payEmployees: Map<string, PayslipEmployee>,
   prevPayEmployees?: Map<string, PayslipEmployee>,
+  utilization?: Map<string, UtilizationRow>,
   onProgress?: (done: number, total: number, label: string) => void
 ): AuditResult {
   const attMap = new Map<string, AttendanceRow>();
@@ -43,6 +44,10 @@ export function runAudit(
     () => checkGlobalEmployees(attMap, payEmployees),
     () => checkVehicleAndTravel(attMap, payEmployees),
   ];
+
+  if (utilization && utilization.size > 0) {
+    allChecks.push(() => checkLowBalances(attMap, payEmployees, utilization));
+  }
 
   if (prevPayEmployees) {
     allChecks.push(

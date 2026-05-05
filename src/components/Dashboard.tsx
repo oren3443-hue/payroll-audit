@@ -16,7 +16,7 @@ interface Props {
 
 type Tab = 'checks' | 'departments' | 'employees';
 
-const CHECK_ORDER = ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'C10', 'C11', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C12', 'C13', 'P1', 'P2', 'P3', 'P4'];
+const CHECK_ORDER = ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'C10', 'C11', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C12', 'C13', 'C14', 'P1', 'P2', 'P3', 'P4'];
 
 export function Dashboard({ result, onReset, onExport }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('checks');

@@ -20,10 +20,14 @@ export function detectFileType(rows: unknown[][], filename: string): FileDetecti
 
   const attendanceSignals = ['שעות לילה', 'עלות נסיעות', 'ימי עבודה בפועל', 'שעות 100', 'שעות 125', 'ימי מחלה'];
   const payslipSignals = ['שם הרכיב', 'קוד', 'כמות', 'מחיר', 'תשלום', 'רכיב תשלום'];
+  // קובץ נוכחות וניצולים מזוהה לפי שילוב ייחודי של עמודות
+  const utilSignals = ['בסיס שכר', 'י"ע משולמים', 'ש"ע משולמות', 'תקן י"ע', 'י"ע בפועל', 'חופשה - יתרה', 'מחלה - יתרה'];
 
   const attScore = attendanceSignals.filter(s => sample.includes(s.toLowerCase())).length;
   const payScore = payslipSignals.filter(s => sample.includes(s.toLowerCase())).length;
+  const utilScore = utilSignals.filter(s => sample.includes(s.toLowerCase())).length;
 
+  if (utilScore >= 2) return 'utilization';
   if (attScore >= 2) return 'attendance';
   if (payScore >= 2) return 'payslips';
   return 'unknown';

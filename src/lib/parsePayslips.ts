@@ -1,4 +1,4 @@
-import type { PayslipEmployee, PayslipComponent } from './types';
+import type { PayslipEmployee, PayslipComponent, UtilizationRow } from './types';
 export type { PayslipEmployee };
 
 function toNum(v: unknown): number | null {
@@ -23,7 +23,7 @@ function findDataStart(rows: unknown[][]): number {
   return 1;
 }
 
-export function parsePayslips(rows: unknown[][]): {
+export function parsePayslips(rows: unknown[][], util?: Map<string, UtilizationRow>): {
   employees: Map<string, PayslipEmployee>;
   missingColumns: string[];
 } {
@@ -94,6 +94,16 @@ export function parsePayslips(rows: unknown[][]): {
 
       if (componentName === 'משכורת') {
         emp.isGlobal = true;
+      }
+    }
+  }
+
+  // אם יש קובץ ניצולים — נעדכן is_global לפי בסיס שכר (מקור אמין יותר)
+  if (util) {
+    for (const emp of empMap.values()) {
+      const u = util.get(emp.empId);
+      if (u && u.salaryBase) {
+        emp.isGlobal = u.salaryBase === 'חדשי';
       }
     }
   }

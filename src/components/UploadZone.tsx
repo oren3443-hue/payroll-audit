@@ -3,12 +3,13 @@ import { Upload, FileSpreadsheet, X, CheckCircle, AlertCircle, Loader2 } from 'l
 import { parseExcelFile } from '../lib/detectFileType';
 import { parseAttendance } from '../lib/parseAttendance';
 import { parsePayslips } from '../lib/parsePayslips';
-import { AttendanceRow } from '../lib/types';
+import { parseUtilization } from '../lib/parseUtilization';
+import { AttendanceRow, UtilizationRow } from '../lib/types';
 import { PayslipEmployee } from '../lib/parsePayslips';
 import { cn } from '../lib/utils';
 
 interface LoadedFile {
-  type: 'attendance' | 'payslips' | 'prevPayslips' | 'unknown';
+  type: 'attendance' | 'payslips' | 'prevPayslips' | 'utilization' | 'unknown';
   filename: string;
   rowCount: number;
 }
@@ -17,7 +18,8 @@ interface Props {
   onReady: (
     att: AttendanceRow[],
     pay: Map<string, PayslipEmployee>,
-    prev?: Map<string, PayslipEmployee>
+    prev?: Map<string, PayslipEmployee>,
+    util?: Map<string, UtilizationRow>
   ) => void;
 }
 
@@ -31,6 +33,8 @@ export function UploadZone({ onReady }: Props) {
   const [attData, setAttData] = useState<AttendanceRow[] | null>(null);
   const [payData, setPayData] = useState<Map<string, PayslipEmployee> | null>(null);
   const [prevPayData, setPrevPayData] = useState<Map<string, PayslipEmployee> | null>(null);
+  const [utilData, setUtilData] = useState<Map<string, UtilizationRow> | null>(null);
+  const [pendingPayRows, setPendingPayRows] = useState<unknown[][] | null>(null);
 
   const processFiles = useCallback(async (fileList: File[]) => {
     setLoading(true);
@@ -40,6 +44,8 @@ export function UploadZone({ onReady }: Props) {
     let newAtt = attData;
     let newPay = payData;
     let newPrev = prevPayData;
+    let newUtil = utilData;
+    let pendingPay = pendingPayRows;
     const newFiles = [...files];
 
     try {
@@ -67,27 +73,53 @@ export function UploadZone({ onReady }: Props) {
           newFiles.push({ type: 'attendance', filename: file.name, rowCount: employees.length });
           setAttData(employees);
         } else if (detected.type === 'payslips') {
-          const { employees, missingColumns } = parsePayslips(detected.rows);
+          // אם כבר יש util — נפעיל אותו ב-parsePayslips לזיהוי גלובלי
+          const { employees, missingColumns } = parsePayslips(detected.rows, newUtil ?? undefined);
           if (missingColumns.length > 0) {
             setMissingCols(prev => [...prev, ...missingColumns]);
           }
           newPay = employees;
+          pendingPay = newUtil ? null : detected.rows;  // שמור rows אם אין עדיין util
           newFiles.push({ type: 'payslips', filename: file.name, rowCount: employees.size });
           setPayData(employees);
+          setPendingPayRows(pendingPay);
         } else if (detected.type === 'prevPayslips') {
           const { employees } = parsePayslips(detected.rows);
           newPrev = employees;
           newFiles.push({ type: 'prevPayslips', filename: file.name, rowCount: employees.size });
           setPrevPayData(employees);
+        } else if (detected.type === 'utilization') {
+          const { rows: utilRows, missingColumns } = parseUtilization(detected.rows);
+          if (missingColumns.length > 0) {
+            setMissingCols(prev => [...prev, ...missingColumns]);
+          }
+          newUtil = utilRows;
+          newFiles.push({ type: 'utilization', filename: file.name, rowCount: utilRows.size });
+          setUtilData(utilRows);
+          // אם כבר יש תלושים שנטענו לפני — נחשב מחדש את is_global
+          if (pendingPay) {
+            const { employees } = parsePayslips(pendingPay, utilRows);
+            newPay = employees;
+            setPayData(employees);
+            pendingPay = null;
+            setPendingPayRows(null);
+          } else if (newPay) {
+            // ניתן לעדכן is_global ישירות על המפה
+            for (const emp of newPay.values()) {
+              const u = utilRows.get(emp.empId);
+              if (u && u.salaryBase) emp.isGlobal = u.salaryBase === 'חדשי';
+            }
+            setPayData(new Map(newPay));
+          }
         }
       }
     } catch (e) {
       setError(`שגיאה בקריאת הקובץ: ${e instanceof Error ? e.message : String(e)}`);
     }
 
-    setFiles(newFiles.slice(-4)); // show last 4
+    setFiles(newFiles.slice(-5));
     setLoading(false);
-  }, [attData, payData, prevPayData, files]);
+  }, [attData, payData, prevPayData, utilData, pendingPayRows, files]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -110,6 +142,7 @@ export function UploadZone({ onReady }: Props) {
     if (removed?.type === 'attendance') setAttData(null);
     if (removed?.type === 'payslips') setPayData(null);
     if (removed?.type === 'prevPayslips') setPrevPayData(null);
+    if (removed?.type === 'utilization') setUtilData(null);
   };
 
   const canRun = attData && payData;
@@ -118,6 +151,7 @@ export function UploadZone({ onReady }: Props) {
     attendance: 'נוכחות',
     payslips: 'תלושי שכר',
     prevPayslips: 'תלושים חודש קודם',
+    utilization: 'נוכחות וניצולים',
     unknown: 'לא זוהה',
   };
 
@@ -125,6 +159,7 @@ export function UploadZone({ onReady }: Props) {
     attendance: 'bg-blue-100 text-blue-700',
     payslips: 'bg-purple-100 text-purple-700',
     prevPayslips: 'bg-slate-100 text-slate-600',
+    utilization: 'bg-emerald-100 text-emerald-700',
     unknown: 'bg-red-100 text-red-600',
   };
 
@@ -163,7 +198,7 @@ export function UploadZone({ onReady }: Props) {
                 <p className="text-lg font-medium text-gray-700">גרור קבצים לכאן</p>
                 <p className="text-sm text-gray-500 mt-1">או לחץ לבחירה — עד 3 קבצי Excel</p>
               </div>
-              <p className="text-xs text-gray-400">נוכחות + תלושים (+ חודש קודם אופציונלי)</p>
+              <p className="text-xs text-gray-400">נוכחות + תלושים (+ נוכחות וניצולים, חודש קודם — אופציונליים)</p>
             </div>
           )}
         </div>
@@ -220,7 +255,7 @@ export function UploadZone({ onReady }: Props) {
         )}
 
         {/* What's loaded */}
-        <div className="mt-6 grid grid-cols-2 gap-3">
+        <div className="mt-6 grid grid-cols-3 gap-3">
           <StatusCard
             label="דוח נוכחות"
             loaded={!!attData}
@@ -233,12 +268,19 @@ export function UploadZone({ onReady }: Props) {
             count={payData?.size}
             unit="עובדים"
           />
+          <StatusCard
+            label="נוכחות וניצולים"
+            loaded={!!utilData}
+            count={utilData?.size}
+            unit="עובדים"
+            optional
+          />
         </div>
 
         {/* Run button */}
         <button
           disabled={!canRun}
-          onClick={() => canRun && onReady(attData!, payData!, prevPayData ?? undefined)}
+          onClick={() => canRun && onReady(attData!, payData!, prevPayData ?? undefined, utilData ?? undefined)}
           className={cn(
             'mt-6 w-full py-4 rounded-2xl text-lg font-semibold transition-all',
             canRun
@@ -253,8 +295,8 @@ export function UploadZone({ onReady }: Props) {
   );
 }
 
-function StatusCard({ label, loaded, count, unit }: {
-  label: string; loaded: boolean; count?: number; unit: string;
+function StatusCard({ label, loaded, count, unit, optional }: {
+  label: string; loaded: boolean; count?: number; unit: string; optional?: boolean;
 }) {
   return (
     <div className={cn(
@@ -266,7 +308,10 @@ function StatusCard({ label, loaded, count, unit }: {
         : <div className="w-5 h-5 border-2 border-gray-300 rounded-full shrink-0" />
       }
       <div>
-        <p className="text-sm font-medium text-gray-700">{label}</p>
+        <p className="text-sm font-medium text-gray-700">
+          {label}
+          {optional && <span className="text-xs text-gray-400 mr-1">(אופציונלי)</span>}
+        </p>
         {loaded && count !== undefined && (
           <p className="text-xs text-green-600">{count} {unit}</p>
         )}
