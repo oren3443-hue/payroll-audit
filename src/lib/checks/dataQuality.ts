@@ -13,25 +13,30 @@ export function checkDuplicateComponents(
   const results: CheckResult[] = [];
 
   for (const emp of payMap.values()) {
-    const seen = new Map<string, number>();
+    // קיבוץ לפי שם רכיב (componentCode זו קטגוריה: ב/נ/פ/ק — לא מזהה ייחודי)
+    const seen = new Map<string, { count: number; totalPayment: number; code: string }>();
     for (const c of emp.components) {
-      seen.set(c.componentCode || c.componentName, (seen.get(c.componentCode || c.componentName) ?? 0) + 1);
+      const key = c.componentName;
+      if (!key) continue;
+      const cur = seen.get(key) ?? { count: 0, totalPayment: 0, code: c.componentCode };
+      cur.count += 1;
+      cur.totalPayment += Math.abs(c.payment ?? 0);
+      seen.set(key, cur);
     }
-    for (const [code, count] of seen.entries()) {
-      if (count > 1) {
-        const comp = emp.components.find(c => (c.componentCode || c.componentName) === code);
+    for (const [name, info] of seen.entries()) {
+      if (info.count > 1) {
         results.push({
           empId: emp.empId,
           empName: emp.name,
           department: emp.department,
           severity: 'critical',
-          financialImpact: Math.abs(comp?.payment ?? 0),
+          financialImpact: info.totalPayment,
           checkId: 'Q2',
           fields: {
-            'רכיב': comp?.componentName ?? code,
-            'קוד': code,
-            'מספר הופעות': count,
-            'סכום': comp?.payment ?? null,
+            'רכיב': name,
+            'קוד קטגוריה': info.code,
+            'מספר הופעות': info.count,
+            'סכום מצטבר': Math.round(info.totalPayment * 100) / 100,
           },
         });
       }

@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { AuditResult, CheckSummary } from '../lib/types';
+import { PayslipEmployee } from '../lib/parsePayslips';
 import { EmployeeScore, computeEmployeeScores } from '../lib/scoring';
 import { CheckTable } from './CheckTable';
 import { DepartmentView } from './DepartmentView';
@@ -11,6 +12,7 @@ import { exportImportFile } from '../lib/exportImport';
 
 interface Props {
   result: AuditResult;
+  payslips: Map<string, PayslipEmployee>;
   onReset: () => void;
   onExport: () => void;
 }
@@ -19,7 +21,7 @@ type Tab = 'checks' | 'departments' | 'employees';
 
 const CHECK_ORDER = ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'C10', 'C11', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C12', 'C13', 'C14', 'P1', 'P2', 'P3', 'P4'];
 
-export function Dashboard({ result, onReset, onExport }: Props) {
+export function Dashboard({ result, payslips, onReset, onExport }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('checks');
   const [selectedCheck, setSelectedCheck] = useState<string | null>(null);
   const [selectedEmpId, setSelectedEmpId] = useState<string | null>(null);
@@ -56,7 +58,7 @@ export function Dashboard({ result, onReset, onExport }: Props) {
             <button
               onClick={() => {
                 const now = new Date();
-                exportImportFile(result, now.getFullYear(), now.getMonth() + 1);
+                exportImportFile(result, payslips, now.getFullYear(), now.getMonth() + 1);
               }}
               className="flex items-center gap-2 px-3 py-1.5 bg-emerald-600 text-white text-sm rounded-lg hover:bg-emerald-700 transition-colors"
               title="קובץ לקליטה במיכפל — מאפס רכיבים שעתיים אצל גלובלים שסומנו לתיקון"

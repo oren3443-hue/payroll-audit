@@ -19,6 +19,7 @@ export default function App() {
   const [appState, setAppState] = useState<AppState>('upload');
   const [progress, setProgress] = useState<Progress>({ done: 0, total: 1, label: '' });
   const [result, setResult] = useState<AuditResult | null>(null);
+  const [payslips, setPayslips] = useState<Map<string, PayslipEmployee> | null>(null);
 
   const handleReady = useCallback(async (
     att: AttendanceRow[],
@@ -28,6 +29,7 @@ export default function App() {
   ) => {
     setAppState('running');
     setProgress({ done: 0, total: 18 + (prev ? 4 : 0) + (util ? 1 : 0), label: 'מתחיל...' });
+    setPayslips(pay);
 
     await new Promise(r => setTimeout(r, 50));
 
@@ -81,6 +83,7 @@ export default function App() {
   return (
     <Dashboard
       result={result!}
+      payslips={payslips!}
       onReset={handleReset}
       onExport={handleExport}
     />
