@@ -1,0 +1,42 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', system-ui, sans-serif;
+  background: #f8fafc;
+  color: #1e293b;
+  direction: rtl;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* RTL table adjustments */
+table {
+  direction: rtl;
+}
+
+/* Severity row colors */
+.row-critical { background-color: #fef2f2; }
+.row-critical:hover { background-color: #fee2e2; }
+.row-high { background-color: #fff7ed; }
+.row-high:hover { background-color: #ffedd5; }
+.row-medium { background-color: #fefce8; }
+.row-medium:hover { background-color: #fef9c3; }
+.row-low { background-color: #f0fdf4; }
+.row-low:hover { background-color: #dcfce7; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
