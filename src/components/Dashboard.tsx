@@ -1,11 +1,12 @@
 import { useState, useMemo } from 'react';
-import { AuditResult, CheckSummary } from '../lib/types';
+import { AuditResult, CheckSummary, EmployeeMaster } from '../lib/types';
 import { PayslipEmployee } from '../lib/parsePayslips';
 import { EmployeeScore, computeEmployeeScores } from '../lib/scoring';
 import { CheckTable } from './CheckTable';
 import { DepartmentView } from './DepartmentView';
 import { EmployeeListView } from './EmployeeListView';
 import { EmployeeDrawer } from './EmployeeDrawer';
+import { MinWageView } from './MinWageView';
 import { formatCurrency, cn, SEV_TEXT, SEV_DOT } from '../lib/utils';
 import { Download, RefreshCw, FileDown } from 'lucide-react';
 import { exportImportFile } from '../lib/exportImport';
@@ -14,15 +15,16 @@ interface Props {
   result: AuditResult;
   payslips: Map<string, PayslipEmployee>;
   period: { month: number; year: number } | null;
+  employeeMaster: Map<string, EmployeeMaster> | null;
   onReset: () => void;
   onExport: () => void;
 }
 
-type Tab = 'checks' | 'departments' | 'employees';
+type Tab = 'checks' | 'departments' | 'employees' | 'minwage';
 
 const CHECK_ORDER = ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'C10', 'C11', 'C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'C9', 'C12', 'C13', 'C14', 'P1', 'P2', 'P3', 'P4'];
 
-export function Dashboard({ result, payslips, period, onReset, onExport }: Props) {
+export function Dashboard({ result, payslips, period, employeeMaster, onReset, onExport }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>('checks');
   const [selectedCheck, setSelectedCheck] = useState<string | null>(null);
   const [selectedEmpId, setSelectedEmpId] = useState<string | null>(null);
@@ -111,6 +113,7 @@ export function Dashboard({ result, payslips, period, onReset, onExport }: Props
             { id: 'checks' as Tab, label: 'לפי בדיקה' },
             { id: 'departments' as Tab, label: 'לפי מחלקה' },
             { id: 'employees' as Tab, label: 'לפי עובד' },
+            { id: 'minwage' as Tab, label: '🎂 שכר מינימום' },
           ].map(t => (
             <button
               key={t.id}
@@ -138,6 +141,9 @@ export function Dashboard({ result, payslips, period, onReset, onExport }: Props
         )}
         {activeTab === 'employees' && (
           <EmployeeListView scores={scores} onEmployeeClick={setSelectedEmpId} />
+        )}
+        {activeTab === 'minwage' && (
+          <MinWageView master={employeeMaster} payslips={payslips} period={period} />
         )}
       </div>
 

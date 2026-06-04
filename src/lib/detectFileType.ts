@@ -22,11 +22,16 @@ export function detectFileType(rows: unknown[][], filename: string): FileDetecti
   const payslipSignals = ['שם הרכיב', 'קוד', 'כמות', 'מחיר', 'תשלום', 'רכיב תשלום'];
   // קובץ נוכחות וניצולים מזוהה לפי שילוב ייחודי של עמודות
   const utilSignals = ['בסיס שכר', 'י"ע משולמים', 'ש"ע משולמות', 'תקן י"ע', 'י"ע בפועל', 'חופשה - יתרה', 'מחלה - יתרה'];
+  // קובץ "נתוני עובד מיכפל" — מאסטר עובדים. עמודות ייחודיות שאינן בקבצים האחרים.
+  // חובה לבדוק לפניו את util, כי המאסטר מכיל גם 'תקן י"ע'/'בסיס שכר'.
+  const masterSignals = ['מפתח שם עובד', 'תאריך לידה', 'קוד מין', 'קוד מצב משפחתי', 'תאריך תחילת עבודה'];
 
   const attScore = attendanceSignals.filter(s => sample.includes(s.toLowerCase())).length;
   const payScore = payslipSignals.filter(s => sample.includes(s.toLowerCase())).length;
   const utilScore = utilSignals.filter(s => sample.includes(s.toLowerCase())).length;
+  const masterScore = masterSignals.filter(s => sample.includes(s.toLowerCase())).length;
 
+  if (masterScore >= 2) return 'employeeMaster';
   if (utilScore >= 2) return 'utilization';
   if (attScore >= 2) return 'attendance';
   if (payScore >= 2) {
@@ -68,6 +73,34 @@ export function extractYearFromPayslip(rows: unknown[][]): number | null {
   return null;
 }
 
+// מחלץ מספר חודש מקובץ "נוכחות וניצולים" (col[5] = מספר חודש)
+export function extractMonthFromUtilization(rows: unknown[][]): number | null {
+  for (let i = 0; i < Math.min(20, rows.length); i++) {
+    const row = rows[i] as unknown[];
+    if (!row) continue;
+    const m = row[5];
+    if (m !== null && m !== undefined && m !== '') {
+      const n = Number(m);
+      if (!isNaN(n) && n >= 1 && n <= 12) return n;
+    }
+  }
+  return null;
+}
+
+// מחלץ שנה מקובץ "נוכחות וניצולים" (col[1] = שנת מס)
+export function extractYearFromUtilization(rows: unknown[][]): number | null {
+  for (let i = 0; i < Math.min(20, rows.length); i++) {
+    const row = rows[i] as unknown[];
+    if (!row) continue;
+    const y = row[1];
+    if (y !== null && y !== undefined && y !== '') {
+      const n = Number(y);
+      if (!isNaN(n) && n >= 2000 && n <= 2100) return n;
+    }
+  }
+  return null;
+}
+
 export function parseExcelFile(file: File): Promise<FileDetectionResult> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -76,7 +109,8 @@ export function parseExcelFile(file: File): Promise<FileDetectionResult> {
         // Dynamic import to avoid SSR issues
         import('xlsx').then(XLSX => {
           const data = new Uint8Array(e.target!.result as ArrayBuffer);
-          const wb = XLSX.read(data, { type: 'array' });
+          // cellDates: תאי תאריך מוחזרים כאובייקט Date (חשוב לתאריך לידה במאסטר)
+          const wb = XLSX.read(data, { type: 'array', cellDates: true });
           const ws = wb.Sheets[wb.SheetNames[0]];
           const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: null });
           const type = detectFileType(rows as unknown[][], file.name);

@@ -67,6 +67,13 @@ export interface PayslipEmployee {
   isGlobal: boolean;      // has משכורת component
 }
 
+export interface EmployeeMaster {
+  empId: string;          // col 0 - מספר עובד (מספר מיכפל, מפתח חיבור)
+  name: string;           // col 2 + col 3 - שם פרטי + שם משפחה
+  birthDate: Date | null; // col 15 - תאריך לידה
+  gender: string;         // col 6 - קוד מין
+}
+
 export interface IssueStatus {
   status: 'unreviewed' | 'ok' | 'fix' | 'irrelevant';
   note?: string;
@@ -113,7 +120,7 @@ export interface AuditResult {
 }
 
 export interface FileDetectionResult {
-  type: 'attendance' | 'payslips' | 'prevPayslips' | 'utilization' | 'unknown';
+  type: 'attendance' | 'payslips' | 'prevPayslips' | 'utilization' | 'employeeMaster' | 'unknown';
   rows: unknown[][];
   filename: string;
 }
