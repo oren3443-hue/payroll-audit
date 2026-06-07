@@ -28,7 +28,7 @@ export function runAudit(
     () => checkEmptyComponents(payEmployees),
     () => checkDuplicateComponents(payEmployees),
     () => checkPhantomEmployees(attMap, payEmployees),
-    () => checkDailyTravel(attMap),
+    () => checkDailyTravel(attMap, payEmployees),
     () => checkDailySalary(attMap),
     () => checkHourlyRate(attMap, payEmployees),
     () => checkHours100(attMap, payEmployees),

@@ -112,14 +112,22 @@ export function checkPhantomEmployees(
 }
 
 export function checkDailyTravel(
-  attMap: Map<string, AttendanceRow>
+  attMap: Map<string, AttendanceRow>,
+  payMap: Map<string, PayslipEmployee>
 ): CheckSummary {
   const results: CheckResult[] = [];
   const MIN = 4, MAX = 16;
 
   for (const att of attMap.values()) {
-    if (att.travel === 0 || att.workDays === 0) continue;
-    const daily = att.travel / att.workDays;
+    if (att.workDays === 0) continue;
+    const pay = payMap.get(att.empId);
+    if (!pay) continue;
+    // נסיעות ששולמו בפועל בתלוש — לא כולל החזר הוצ רכב
+    const payTravel = pay.components
+      .filter(c => c.componentName === 'נסיעות')
+      .reduce((s, c) => s + (c.payment ?? 0), 0);
+    if (payTravel === 0) continue;
+    const daily = payTravel / att.workDays;
     if (daily < MIN || daily > MAX) {
       const severity: Severity = daily < 2 || daily > 30 ? 'high' : 'medium';
       results.push({
@@ -131,7 +139,7 @@ export function checkDailyTravel(
         financialImpact: 0,
         checkId: 'Q4',
         fields: {
-          'נסיעות כולל': att.travel,
+          'נסיעות תלוש': payTravel,
           'ימי עבודה': att.workDays,
           'נסיעות ליום': Math.round(daily * 100) / 100,
           'טווח ציפייה': `${MIN}–${MAX} ₪/יום`,
@@ -140,7 +148,7 @@ export function checkDailyTravel(
     }
   }
 
-  return makeSum('Q4', 'נסיעות יומי חריג', `נסיעות ÷ ימי עבודה מחוץ לטווח ${MIN}-${MAX} ₪/יום`, 'quality', results);
+  return makeSum('Q4', 'נסיעות יומי חריג', `נסיעות בתלוש ÷ ימי עבודה מחוץ לטווח ${MIN}-${MAX} ₪/יום`, 'quality', results);
 }
 
 export function checkDailySalary(
