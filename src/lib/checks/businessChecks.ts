@@ -168,50 +168,64 @@ export function checkWorkDays(
   for (const [id, att] of a.entries()) {
     const pay = p.get(id);
     if (!pay) continue;
+    // עובדים גלובלים (משכורת חודשית) נבדקים ב-C12 — שכרם אינו לפי ימים
+    if (pay.isGlobal) continue;
     const u = util?.get(id);
 
     const attDays = att.workDays;
 
-    // נתונים ממיכפל אם קיימים, אחרת חישוב מהתלוש
-    let paidDays: number, actualDays: number, source: string;
-    let stdDays: number | null = null;
-    if (u && u.actualDays !== null) {
-      paidDays = u.paidDays ?? 0;
-      actualDays = u.actualDays;
-      stdDays = u.stdDays;
+    // ימים משולמים + ימי היעדרות בתשלום (חופש/מחלה/מילואים).
+    // מקור: קובץ הניצולים (מיכפל) אם קיים, אחרת התלוש/נוכחות.
+    let paidDays: number, vac: number, sick: number, reserve: number, source: string;
+    if (u && u.paidDays !== null) {
+      paidDays = u.paidDays;
+      vac = u.vacUsed ?? 0;
+      sick = u.sickUsed ?? 0;
+      reserve = u.reserveDays ?? 0;
       source = 'מיכפל';
     } else {
       paidDays = pay.workDays ?? 0;
-      const payVac = pay.vacationDays ?? 0;
-      const paySick = pay.sickDays ?? 0;
-      actualDays = paidDays - payVac - paySick - att.reserveDays;
+      vac = pay.vacationDays ?? 0;
+      sick = pay.sickDays ?? 0;
+      reserve = att.reserveDays;
       source = 'מחושב';
     }
 
-    const diff = attDays - actualDays;
-    if (Math.abs(diff) < 0.01) continue;
+    // ימים משולמים אמורים להיות = נוכחות + חופש + מחלה + מילואים (+ חג)
+    const expectedPaid = attDays + vac + sick + reserve;
+    const gap = paidDays - expectedPaid;
+
+    // שעות חג מהתלוש — אין נתון "ימי חג", רק אינדיקציה שעשויה להסביר עודף תשלום
+    const holidayHours = pay.components
+      .filter(c => c.componentName.startsWith('חג') || c.componentName.includes('עבודה חג'))
+      .reduce((s, c) => s + (c.qty ?? 0), 0);
+
+    if (Math.abs(gap) < 0.5) continue;
 
     let sev: Severity;
-    if (Math.abs(diff) > 3) sev = 'critical';
-    else if (Math.abs(diff) > 1) sev = 'high';
+    if (Math.abs(gap) > 3) sev = 'critical';
+    else if (Math.abs(gap) > 1) sev = 'high';
     else sev = 'medium';
 
     const dailyRate = att.hourlyRate * 8;
     results.push({
       empId: id, empName: att.name, department: att.department, branch: att.branch,
-      severity: sev, financialImpact: Math.abs(diff * dailyRate), checkId: 'C6',
+      severity: sev, financialImpact: Math.abs(gap * dailyRate), checkId: 'C6',
       fields: {
         'ימי עבודה נוכחות': attDays,
-        'י"ע משולמים (תלוש)': paidDays,
-        'תקן י"ע': stdDays,
-        'י"ע בפועל (תלוש)': Math.round(actualDays * 100) / 100,
-        'הפרש בפועל': Math.round(diff * 100) / 100,
+        'חופש': vac,
+        'מחלה': sick,
+        'מילואים': reserve,
+        'צפוי לתשלום': Math.round(expectedPaid * 100) / 100,
+        'י"ע משולמים': paidDays,
+        'הפרש (משולם−צפוי)': Math.round(gap * 100) / 100,
+        'שעות חג': holidayHours > 0 ? `🎉 ${Math.round(holidayHours * 100) / 100}` : null,
         'מקור נתון': source,
       },
     });
   }
 
-  return makeSum('C6', 'הפרש ימי עבודה', 'נוכחות מול י"ע בפועל מקובץ הניצולים (מיכפל). מציג גם משולמים+תקן.', results);
+  return makeSum('C6', 'הפרש ימי עבודה', 'ימים משולמים מול נוכחות + חופש + מחלה + מילואים (גלובלים ב-C12). חג מסומן 🎉 — אין נתון ימי-חג.', results);
 }
 
 export function checkTravel(a: Map<string, AttendanceRow>, p: Map<string, PayslipEmployee>) {
