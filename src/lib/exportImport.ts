@@ -1,6 +1,7 @@
 import { AuditResult } from './types';
 import { PayslipEmployee } from './parsePayslips';
 import { getAllStatuses, makeKey } from './statusStore';
+import { isHolidayComponent } from './componentCodes';
 
 /**
  * יוצר קובץ לקליטה למיכפל לאיפוס רכיבים אסורים אצל עובדים גלובלים
@@ -41,7 +42,7 @@ const FORBIDDEN_NAMES = new Set([
 
 function isForbiddenComponent(name: string): boolean {
   if (FORBIDDEN_NAMES.has(name)) return true;
-  if (name.startsWith('חג:') || name.startsWith('חג ')) return true;
+  if (isHolidayComponent(name)) return true;
   return false;
 }
 
@@ -133,7 +134,7 @@ export async function exportImportFile(
   const presentCols = COL_ORDER.filter(c => allForbiddenNames.has(c));
   // הוסף בסוף את כל החגים שמופיעים (מסודרים לפי שם)
   const holidayCols = [...allForbiddenNames]
-    .filter(n => (n.startsWith('חג:') || n.startsWith('חג ')))
+    .filter(isHolidayComponent)
     .sort((a, b) => a.localeCompare(b, 'he'));
   // ועוד שאר רכיבים שלא נכללו (תיאורטית לא יקרה)
   const knownSet = new Set([...presentCols, ...holidayCols]);

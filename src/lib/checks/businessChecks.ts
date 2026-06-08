@@ -1,5 +1,6 @@
 import { CheckResult, CheckSummary, AttendanceRow, Severity, CheckId, UtilizationRow } from '../types';
 import { PayslipEmployee, getComponentQty, getComponentPayment } from '../parsePayslips';
+import { isHolidayComponent } from '../componentCodes';
 
 function abs(v: number) { return Math.abs(v); }
 
@@ -197,7 +198,7 @@ export function checkWorkDays(
 
     // שעות חג מהתלוש — אין נתון "ימי חג", רק אינדיקציה שעשויה להסביר עודף תשלום
     const holidayHours = pay.components
-      .filter(c => c.componentName.startsWith('חג') || c.componentName.includes('עבודה חג'))
+      .filter(c => isHolidayComponent(c.componentName))
       .reduce((s, c) => s + (c.qty ?? 0), 0);
 
     if (Math.abs(gap) < 0.5) continue;
@@ -433,11 +434,6 @@ const FORBIDDEN_HOURLY = [
   'משמרות',           // 29
   'נוספות.משמרות',    // 30
 ];
-
-// רכיבי חגים (137-143) מזוהים לפי תחילית "חג:"
-function isHolidayComponent(name: string): boolean {
-  return name.startsWith('חג:') || name.startsWith('חג ');
-}
 
 export function checkGlobalEmployees(
   a: Map<string, AttendanceRow>,

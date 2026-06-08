@@ -61,3 +61,15 @@ export const NAME_TO_CODE: Record<string, number> = Object.fromEntries(
 export function getCodeByName(name: string): number | null {
   return NAME_TO_CODE[name] ?? null;
 }
+
+// ───────────────────────────────────────────────────────────────
+// רכיבי חג
+// קודי מיכפל של רכיבי חג: 11 (חג — יום היעדרות), 130/136-143 (חג: פסח/שבועות/
+// ר"ה/יו"כ/סוכות/עצמאות/שמחת תורה...). אינו כולל 82 ("עבודה חג" = שעות עבודה בחג).
+// התלוש מזהה רכיבים לפי שם בלבד (אין בו קוד מספרי), לכן הזיהוי בפועל לפי השם —
+// כל רכיב ששמו מכיל "חג" פרט ל"עבודה חג". הקודים נשמרים לתיעוד/שימוש עתידי.
+export const HOLIDAY_CODES = new Set<number>([11, 130, 136, 137, 138, 139, 140, 141, 142, 143]);
+
+export function isHolidayComponent(name: string): boolean {
+  return name.includes('חג') && !name.includes('עבודה חג');
+}
