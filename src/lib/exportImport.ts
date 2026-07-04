@@ -1,4 +1,5 @@
 import { AuditResult } from './types';
+import { sanitizeCellValue } from './excelSafe';
 import { PayslipEmployee } from './parsePayslips';
 import { getAllStatuses, makeKey } from './statusStore';
 import { isHolidayComponent } from './componentCodes';
@@ -143,14 +144,14 @@ export async function exportImportFile(
   const columns = [...presentCols, ...holidayCols, ...otherCols];
 
   // שלב 3: בנה את הקובץ
-  const headers = ['מספר עובד', 'שם העובד', ...columns];
+  const headers = ['מספר עובד', 'שם העובד', ...columns.map(sanitizeCellValue)];
   const metaRow: unknown[] = [10, year, month, ...new Array(headers.length - 3).fill(null)];
 
   const aoa: unknown[][] = [metaRow, headers];
   for (const r of rows) {
     aoa.push([
       r.empId,
-      r.empName,
+      sanitizeCellValue(r.empName),
       ...columns.map(c => r.toZero.has(c) ? 0 : null),
     ]);
   }

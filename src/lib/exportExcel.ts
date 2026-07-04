@@ -1,4 +1,5 @@
 import { AuditResult, CheckSummary, Severity } from './types';
+import { sanitizeCellValue } from './excelSafe';
 
 const SEV_COLOR: Record<Severity, string> = {
   critical: 'FFFFC7CE',  // red background
@@ -15,7 +16,8 @@ const SEV_FONT: Record<Severity, string> = {
 };
 
 function makeCell(value: unknown, severity?: Severity, bold = false) {
-  const cell: Record<string, unknown> = { v: value ?? '', t: typeof value === 'number' ? 'n' : 's' };
+  const safe = sanitizeCellValue(value);
+  const cell: Record<string, unknown> = { v: safe ?? '', t: typeof safe === 'number' ? 'n' : 's' };
   if (severity || bold) {
     cell.s = {
       font: {
